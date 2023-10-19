@@ -2,6 +2,7 @@ import pickle
 import torch
 import io
 import matplotlib.pyplot as plt
+import numpy as np
 
 # Metrics definitions
 def jaccard_similarity(tensor1, tensor2):
@@ -66,22 +67,22 @@ for layer, sublayers in data1.items():
 
         # Sublayer metrics
         results['jaccard']['sublayer'].append({
-            'name': f"Layer {layer} {sublayer_name}",
+            'name': f"Layer {layer} Sublayer {sublayer_name} (Shape: {mask1.shape})",
             'value': jaccard_similarity(mask1, mask2).cpu().item()
         })
 
         # results['hamming']['sublayer'].append({
-        #     'name': f"Layer {layer} {sublayer_name}",
+        #     'name': f"Layer {layer} Sublayer {sublayer_name} (Shape: {mask1.shape})",
         #     'value': hamming_similarity(mask1, mask2).cpu().item()
         # })
 
         # results['cosine']['sublayer'].append({
-        #     'name': f"Layer {layer} {sublayer_name}",
+        #     'name': f"Layer {layer} Sublayer {sublayer_name} (Shape: {mask1.shape})",
         #     'value': cosine_similarity(mask1.view(-1), mask2.view(-1)).cpu().item()
         # })
 
         # results['euclidean']['sublayer'].append({
-        #     'name': f"Layer {layer} {sublayer_name}",
+        #     'name': f"Layer {layer} Sublayer {sublayer_name} (Shape: {mask1.shape})",
         #     'value': euclidean_distance(mask1, mask2).cpu().item()
         # })
 
@@ -133,19 +134,47 @@ print(results)
 
 # Visualization and Saving
 for metric, data in results.items():
-    # Sublayer
-    plt.figure(figsize=(10, 6))
-    for sublayer in data['sublayer']:
+    # Sort sublayer data based on the metric values
+    sorted_sublayer_data = sorted(data['sublayer'], key=lambda x: x['value'], reverse=False)
+
+    # Sublayer Histogram
+    plt.figure(figsize=(12, 7))
+    for sublayer in sorted_sublayer_data:
         plt.hist(sublayer['value'], bins=20, edgecolor='k', alpha=0.7, label=sublayer['name'])
     plt.title(f'{metric.capitalize()} Similarity Distribution - Sublayer')
     plt.xlabel(f'{metric.capitalize()} Similarity')
     plt.ylabel('Count')
-    plt.legend(loc='upper right')
+    plt.legend(loc='upper left')
     if metric in ['jaccard', 'hamming']:
         plt.xlim(0, 1)
     elif metric == 'cosine':
         plt.xlim(-1, 1)
-    plt.savefig(f"{combined_mask_name}_{metric}_sublayer.png")
+    plt.savefig(f"{combined_mask_name}_{metric}_sublayer_hist.png")
+    plt.close()
+
+    # Sublayer CDF
+    plt.figure(figsize=(12, 7))
+    for sublayer_data in sorted_sublayer_data:
+        values = sublayer_data['value']
+
+        # Compute the histogram of the data
+        hist, bin_edges = np.histogram(values, bins=20, density=True)
+
+        # Compute the CDF using the histogram data
+        cdf = np.cumsum(hist * np.diff(bin_edges))
+
+        # Plot the CDF
+        plt.plot(bin_edges[1:], cdf, label=sublayer_data['name'])
+
+    plt.title(f'{metric.capitalize()} Similarity CDF - Sublayer')
+    plt.xlabel(f'{metric.capitalize()} Similarity')
+    plt.ylabel('CDF')
+    plt.legend(loc='upper left')
+    if metric in ['jaccard', 'hamming']:
+        plt.xlim(0, 1)
+    elif metric == 'cosine':
+        plt.xlim(-1, 1)
+    plt.savefig(f"{combined_mask_name}_{metric}_sublayer_cdf.png")
     plt.close()
 
     # Layer
