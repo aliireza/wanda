@@ -8,6 +8,9 @@ from .data import get_loaders
 
 from .ablate import AblateGPT 
 
+import pickle
+import os
+
 def find_layers(module, layers=[nn.Linear], name=''):
     """
     Recursively find the layers of a certain type in a module.
@@ -129,12 +132,13 @@ def prune_wanda(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0
     model.config.use_cache = False 
 
     print("loading calibdation data")
-    dataloader, _ = get_loaders("c4",nsamples=args.nsamples,seed=args.seed,seqlen=model.seqlen,tokenizer=tokenizer)
+    dataloader, _ = get_loaders(args.pruning_dataset,nsamples=args.nsamples,seed=args.seed,seqlen=model.seqlen,tokenizer=tokenizer)
     print("dataset loading complete")
     with torch.no_grad():
         inps, outs, attention_mask, position_ids = prepare_calibration_input(model, dataloader, device)
 
     layers = model.model.layers
+    masks = {}
     for i in range(len(layers)):
         layer = layers[i]
         subset = find_layers(layer)
@@ -144,6 +148,7 @@ def prune_wanda(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0
             inps, outs, attention_mask, position_ids = inps.to(dev), outs.to(dev), attention_mask.to(dev), position_ids.to(dev)
 
         wrapped_layers = {}
+        layer_mask = {}
         for name in subset:
             wrapped_layers[name] = WrappedGPT(subset[name])
 
@@ -200,12 +205,24 @@ def prune_wanda(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0
                     W_mask.scatter_(1, indices, True)
 
             subset[name].weight.data[W_mask] = 0  ## set weights to zero 
+            layer_mask[name]=W_mask
 
         for j in range(args.nsamples):
             with torch.no_grad():
                 outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
         inps, outs = outs, inps
+        masks[i]=layer_mask
 
+        # For debugging purposes
+        # if i==2:
+        #     break
+
+    # Save masks to a file
+    if not os.path.exists(args.save):
+        os.makedirs(args.save)
+    mask_filepath = os.path.join(args.save, f"{args.prune_method}_mask_{args.pruning_dataset}.pkl")
+    with open(mask_filepath, 'wb') as f:
+        pickle.dump(masks, f)
     model.config.use_cache = use_cache 
     torch.cuda.empty_cache()
 

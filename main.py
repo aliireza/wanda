@@ -38,6 +38,7 @@ def main():
     parser.add_argument('--use_variant', action="store_true", help="whether to use the wanda variant described in the appendix")
     parser.add_argument('--save', type=str, default=None, help='Path to save results.')
     parser.add_argument('--save_model', type=str, default=None, help='Path to save the pruned model.')
+    parser.add_argument('--pruning_dataset', type=str, default="c4", choices=["c4", "humaneval", "alpaca"])
 
     parser.add_argument("--eval_zero_shot", action="store_true")
     args = parser.parse_args()

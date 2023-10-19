@@ -65,9 +65,68 @@ def get_c4(nsamples, seed, seqlen, tokenizer):
     valenc = TokenizerWrapper(valenc)
     return trainloader, valenc
 
+# Load and process humaneval dataset
+def get_humaneval(nsamples, seed, seqlen, tokenizer):
+    # Load train and validation datasets
+    traindata = load_dataset("openai_humaneval", split='test')
+
+    # Generate samples from training set
+    random.seed(seed)
+    trainloader = []
+    for _ in range(min(nsamples,len(traindata))):
+        while True:
+            i = random.randint(0, len(traindata) - 1)
+            # Pad token for LLama-2
+            # https://discuss.huggingface.co/t/llama2-pad-token-for-batched-inference/48020/3
+            tokenizer.pad_token = "[PAD]"
+            tokenizer.padding_side = "left"
+            trainenc = tokenizer(traindata[i]['prompt'], return_tensors='pt', padding='max_length', max_length=seqlen+1)
+            if trainenc.input_ids.shape[1] > seqlen:
+                break
+        i = random.randint(0, trainenc.input_ids.shape[1] - seqlen - 1)
+        j = i + seqlen
+        inp = trainenc.input_ids[:, i:j]
+        tar = inp.clone()
+        tar[:, :-1] = -100
+        trainloader.append((inp, tar))
+
+    return trainloader, _
+
+# Load and process python_code_instructions_18k_alpaca dataset
+def get_python_alpaca(nsamples, seed, seqlen, tokenizer):
+    # Load train and validation datasets
+    traindata = load_dataset("iamtarun/python_code_instructions_18k_alpaca", split='train')
+
+    # Generate samples from training set
+    random.seed(seed)
+    trainloader = []
+    for _ in range(min(nsamples,len(traindata))):
+        while True:
+            i = random.randint(0, len(traindata) - 1)
+            prompt = 'Below is an instruction that describes a task. Write a response that appropriately completes the request. ### Instruction:' + traindata[i]['instruction'] + ' ### Input: ' + traindata[i]['input'] + '### Output: '
+            # Pad token for LLama-2
+            # https://discuss.huggingface.co/t/llama2-pad-token-for-batched-inference/48020/3
+            tokenizer.pad_token = "[PAD]"
+            tokenizer.padding_side = "left"
+            trainenc = tokenizer(prompt, return_tensors='pt', padding='max_length', max_length=seqlen+1)
+            if trainenc.input_ids.shape[1] > seqlen:
+                break
+        i = random.randint(0, trainenc.input_ids.shape[1] - seqlen - 1)
+        j = i + seqlen
+        inp = trainenc.input_ids[:, i:j]
+        tar = inp.clone()
+        tar[:, :-1] = -100
+        trainloader.append((inp, tar))
+
+    return trainloader, _
+
 # Function to select the appropriate loader based on dataset name
 def get_loaders(name, nsamples=128, seed=0, seqlen=2048, tokenizer=None):
     if 'wikitext2' in name:
         return get_wikitext2(nsamples, seed, seqlen, tokenizer)
     if "c4" in name:
         return get_c4(nsamples, seed, seqlen, tokenizer)
+    if "humaneval" in name:
+        return get_humaneval(nsamples, seed, seqlen, tokenizer)
+    if "alpaca" in name:
+        return get_python_alpaca(nsamples, seed, seqlen, tokenizer)
