@@ -3,6 +3,7 @@ import torch
 import io
 import matplotlib.pyplot as plt
 import numpy as np
+import re
 
 # Metrics definitions
 def jaccard_similarity(tensor1, tensor2):
@@ -137,74 +138,59 @@ for metric, data in results.items():
     # Sort sublayer data based on the metric values
     sorted_sublayer_data = sorted(data['sublayer'], key=lambda x: x['value'], reverse=False)
 
-    # Sublayer Histogram
-    plt.figure(figsize=(12, 7))
-    for sublayer in sorted_sublayer_data:
-        plt.hist(sublayer['value'], bins=20, edgecolor='k', alpha=0.7, label=sublayer['name'])
-    plt.title(f'{metric.capitalize()} Similarity Distribution - Sublayer')
-    plt.xlabel(f'{metric.capitalize()} Similarity')
-    plt.ylabel('Count')
-    plt.legend(loc='upper left')
-    if metric in ['jaccard', 'hamming']:
-        plt.xlim(0, 1)
-    elif metric == 'cosine':
-        plt.xlim(-1, 1)
-    plt.savefig(f"{combined_mask_name}_{metric}_sublayer_hist.png")
-    plt.close()
-
-    # Sublayer CDF
-    plt.figure(figsize=(12, 7))
-    for sublayer_data in sorted_sublayer_data:
-        values = sublayer_data['value']
-
-        # Compute the histogram of the data
-        hist, bin_edges = np.histogram(values, bins=20, density=True)
-
-        # Compute the CDF using the histogram data
-        cdf = np.cumsum(hist * np.diff(bin_edges))
-
-        # Plot the CDF
-        plt.plot(bin_edges[1:], cdf, label=sublayer_data['name'])
-
-    plt.title(f'{metric.capitalize()} Similarity CDF - Sublayer')
-    plt.xlabel(f'{metric.capitalize()} Similarity')
-    plt.ylabel('CDF')
-    plt.legend(loc='upper left')
-    if metric in ['jaccard', 'hamming']:
-        plt.xlim(0, 1)
-    elif metric == 'cosine':
-        plt.xlim(-1, 1)
-    plt.savefig(f"{combined_mask_name}_{metric}_sublayer_cdf.png")
-    plt.close()
-
-    # Layer
+    # 1. A figure comparing the metrics for different layers
     plt.figure(figsize=(10, 6))
-    values = [layer['value'] for layer in data['layer']]
-    names = [layer['name'] for layer in data['layer']]
-    plt.bar(names, values, edgecolor='k', alpha=0.7)
+    layer_values = [layer['value'] for layer in data['layer']]
+    layer_names = [layer['name'] for layer in data['layer']]
+    plt.bar(layer_names, layer_values, edgecolor='k', alpha=0.7)
     plt.title(f'{metric.capitalize()} Similarity Distribution - Layer')
     plt.xlabel('Layer')
     plt.ylabel(f'{metric.capitalize()} Similarity')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
     if metric in ['jaccard', 'hamming']:
         plt.ylim(0, 1)
     elif metric == 'cosine':
         plt.ylim(-1, 1)
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    plt.savefig(f"{combined_mask_name}_{metric}_layer.png")
+    plt.savefig(f"{combined_mask_name}_{metric}_layers_comparison.png")
     plt.close()
 
-    # Whole
+    # 2. A figure comparing the whole metrics for each mask
     plt.figure(figsize=(10, 6))
     plt.bar(['whole'], [data['whole']])
     plt.title(f'{metric.capitalize()} Similarity - Whole')
     plt.xlabel('Granularity')
     plt.ylabel(f'{metric.capitalize()} Similarity')
-    
     if metric in ['jaccard', 'hamming']:
-        plt.xlim(0, 1)
+        plt.ylim(0, 1)
     elif metric == 'cosine':
-        plt.xlim(-1, 1)
-    
-    plt.savefig(f"{combined_mask_name}_{metric}_whole.png")
+        plt.ylim(-1, 1)
+    plt.savefig(f"{combined_mask_name}_{metric}_whole_comparison.png")
     plt.close()
+
+    # 3. A figure per layer comparing sublayers
+    # First, group the sublayers by layer
+    sublayer_groups = {}
+    for sublayer in sorted_sublayer_data:
+        layer_match = re.search(r'Layer (\d+)', sublayer['name'])
+        layer_number = layer_match.group(1) if layer_match else 'unknown'
+
+        if layer_number not in sublayer_groups:
+            sublayer_groups[layer_number] = []
+        sublayer_groups[layer_number].append(sublayer)
+
+    for layer_number, sublayers in sublayer_groups.items():
+        plt.figure(figsize=(12, 7))
+        for sublayer in sublayers:
+            plt.bar(sublayer['name'], sublayer['value'], edgecolor='k', alpha=0.7, label=sublayer['name'])
+        plt.title(f'{metric.capitalize()} Similarity Distribution - Layer {layer_number} Sublayers')
+        plt.xlabel('Sublayer')
+        plt.ylabel(f'{metric.capitalize()} Similarity')
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        if metric in ['jaccard', 'hamming']:
+            plt.ylim(0, 1)
+        elif metric == 'cosine':
+            plt.ylim(-1, 1)
+        plt.savefig(f"{combined_mask_name}_layer_{layer_number}_{metric}_sublayer_comparison.png")
+        plt.close()
