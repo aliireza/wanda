@@ -139,6 +139,7 @@ def prune_wanda(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0
 
     layers = model.model.layers
     masks = {}
+    temporary_masks = {}  # To store masks temporarily
     for i in range(len(layers)):
         layer = layers[i]
         subset = find_layers(layer)
@@ -213,9 +214,13 @@ def prune_wanda(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0
         inps, outs = outs, inps
         masks[i]=layer_mask
 
-        # For debugging purposes
-        # if i==2:
-        #     break
+        # Move masks to CPU every 5 iterations to save GPU memory
+        if (i + 1) % 5 == 0:
+            temporary_masks.update({k: {kk: vv.cpu() for kk, vv in v.items()} for k, v in masks.items()})
+            masks = {}  # Reset masks to free up GPU memory
+
+    # Combine masks back after finishing all layers
+    masks.update(temporary_masks)
 
     # Save masks to a file
     if not os.path.exists(args.save):
