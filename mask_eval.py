@@ -9,19 +9,24 @@ import re
 def jaccard_similarity(tensor1, tensor2):
     intersection = (tensor1 & tensor2).float().sum()
     union = (tensor1 | tensor2).float().sum()
-    return intersection / union
+    return (intersection / union).item()
 
 def hamming_similarity(tensor1, tensor2):
-    return (tensor1 == tensor2).float().mean()
+    return (tensor1 == tensor2).float().mean().item()
 
 def cosine_similarity(tensor1, tensor2):
     dot_product = (tensor1.float() * tensor2.float()).sum()
     norm1 = tensor1.float().norm()
     norm2 = tensor2.float().norm()
-    return dot_product / (norm1 * norm2)
+    return (dot_product / (norm1 * norm2)).item()
 
 def euclidean_distance(tensor1, tensor2):
-    return torch.norm(tensor1.float() - tensor2.float())
+    return torch.norm(tensor1.float() - tensor2.float()).item()
+
+# Function to sort layer data based on layer number
+def sort_layer_data(results_dict):
+    for metric, data in results_dict.items():
+        results_dict[metric]['layer'] = sorted(data['layer'], key=lambda x: int(re.search(r"Layer (\d+)", x['name']).group(1)))
 
 # Load data from both files
 mask_path1 = "/home/alireza/wanda/wanda_mask_c4.pkl"
@@ -47,9 +52,9 @@ combined_mask_name = f"{mask_name1}_vs_{mask_name2}"
 # Metrics accumulators
 results = {
     'jaccard': {'layer': [], 'sublayer': [], 'whole': None},
-    # 'hamming': {'layer': [], 'sublayer': [], 'whole': None},
-    # 'cosine': {'layer': [], 'sublayer': [], 'whole': None},
-    # 'euclidean': {'layer': [], 'sublayer': [], 'whole': None}
+    'hamming': {'layer': [], 'sublayer': [], 'whole': None},
+    'cosine': {'layer': [], 'sublayer': [], 'whole': None},
+    'euclidean': {'layer': [], 'sublayer': [], 'whole': None}
 }
 
 whole_data1 = []
@@ -66,26 +71,30 @@ for layer, sublayers in data1.items():
     for sublayer_name, mask1 in sublayers.items():
         mask2 = data2[layer][sublayer_name]
 
+        # Move masks to CPU
+        mask1 = mask1.to('cpu')
+        mask2 = mask2.to('cpu')
+
         # Sublayer metrics
         results['jaccard']['sublayer'].append({
             'name': f"Layer {layer} Sublayer {sublayer_name} (Shape: {mask1.shape})",
-            'value': jaccard_similarity(mask1, mask2).cpu().item()
+            'value': jaccard_similarity(mask1, mask2)
         })
 
-        # results['hamming']['sublayer'].append({
-        #     'name': f"Layer {layer} Sublayer {sublayer_name} (Shape: {mask1.shape})",
-        #     'value': hamming_similarity(mask1, mask2).cpu().item()
-        # })
+        results['hamming']['sublayer'].append({
+            'name': f"Layer {layer} Sublayer {sublayer_name} (Shape: {mask1.shape})",
+            'value': hamming_similarity(mask1, mask2)
+        })
 
-        # results['cosine']['sublayer'].append({
-        #     'name': f"Layer {layer} Sublayer {sublayer_name} (Shape: {mask1.shape})",
-        #     'value': cosine_similarity(mask1.view(-1), mask2.view(-1)).cpu().item()
-        # })
+        results['cosine']['sublayer'].append({
+            'name': f"Layer {layer} Sublayer {sublayer_name} (Shape: {mask1.shape})",
+            'value': cosine_similarity(mask1.view(-1), mask2.view(-1))
+        })
 
-        # results['euclidean']['sublayer'].append({
-        #     'name': f"Layer {layer} Sublayer {sublayer_name} (Shape: {mask1.shape})",
-        #     'value': euclidean_distance(mask1, mask2).cpu().item()
-        # })
+        results['euclidean']['sublayer'].append({
+            'name': f"Layer {layer} Sublayer {sublayer_name} (Shape: {mask1.shape})",
+            'value': euclidean_distance(mask1, mask2)
+        })
 
 
         # Accumulate for layer
@@ -99,23 +108,23 @@ for layer, sublayers in data1.items():
     # Layer metrics
     results['jaccard']['layer'].append({
         'name': f"Layer {layer}",
-        'value': jaccard_similarity(layer_data1, layer_data2).cpu().item()
+        'value': jaccard_similarity(layer_data1, layer_data2)
     })
 
-    # results['hamming']['layer'].append({
-    #     'name': f"Layer {layer}",
-    #     'value': hamming_similarity(layer_data1, layer_data2).cpu().item()
-    # })
+    results['hamming']['layer'].append({
+        'name': f"Layer {layer}",
+        'value': hamming_similarity(layer_data1, layer_data2)
+    })
 
-    # results['cosine']['layer'].append({
-    #     'name': f"Layer {layer}",
-    #     'value': cosine_similarity(layer_data1, layer_data2).cpu().item()
-    # })
+    results['cosine']['layer'].append({
+        'name': f"Layer {layer}",
+        'value': cosine_similarity(layer_data1, layer_data2)
+    })
 
-    # results['euclidean']['layer'].append({
-    #     'name': f"Layer {layer}",
-    #     'value': euclidean_distance(layer_data1, layer_data2).cpu().item()
-    # })
+    results['euclidean']['layer'].append({
+        'name': f"Layer {layer}",
+        'value': euclidean_distance(layer_data1, layer_data2)
+    })
 
     # Accumulate for whole masks
     whole_data1.append(layer_data1)
@@ -126,12 +135,15 @@ whole_data1 = torch.cat(whole_data1)
 whole_data2 = torch.cat(whole_data2)
 
 # Whole masks metrics
-results['jaccard']['whole'] = jaccard_similarity(whole_data1, whole_data2).cpu().item()
-# results['hamming']['whole'] = hamming_similarity(whole_data1, whole_data2).cpu().item()
-# results['cosine']['whole'] = cosine_similarity(whole_data1, whole_data2).cpu().item()
-# results['euclidean']['whole'] = euclidean_distance(whole_data1, whole_data2).cpu().item()
+results['jaccard']['whole'] = jaccard_similarity(whole_data1, whole_data2)
+results['hamming']['whole'] = hamming_similarity(whole_data1, whole_data2)
+results['cosine']['whole'] = cosine_similarity(whole_data1, whole_data2)
+results['euclidean']['whole'] = euclidean_distance(whole_data1, whole_data2)
 
 print(results)
+
+# Apply the sorting function to your results
+sort_layer_data(results)
 
 # Visualization and Saving
 for metric, data in results.items():
