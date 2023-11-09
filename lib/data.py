@@ -79,11 +79,11 @@ def get_humaneval(nsamples, seed, seqlen, tokenizer):
             # Pad token for LLama-2
             # https://discuss.huggingface.co/t/llama2-pad-token-for-batched-inference/48020/3
             tokenizer.pad_token = "[PAD]"
-            tokenizer.padding_side = "left"
+            tokenizer.padding_side = "right"
             trainenc = tokenizer(traindata[i]['prompt'], return_tensors='pt', padding='max_length', max_length=seqlen+1)
             if trainenc.input_ids.shape[1] > seqlen:
                 break
-        i = random.randint(0, trainenc.input_ids.shape[1] - seqlen - 1)
+        i = 0 #random.randint(0, trainenc.input_ids.shape[1] - seqlen - 1)
         j = i + seqlen
         inp = trainenc.input_ids[:, i:j]
         tar = inp.clone()
@@ -107,11 +107,11 @@ def get_python_alpaca(nsamples, seed, seqlen, tokenizer):
             # Pad token for LLama-2
             # https://discuss.huggingface.co/t/llama2-pad-token-for-batched-inference/48020/3
             tokenizer.pad_token = "[PAD]"
-            tokenizer.padding_side = "left"
+            tokenizer.padding_side = "right"
             trainenc = tokenizer(prompt, return_tensors='pt', padding='max_length', max_length=seqlen+1)
             if trainenc.input_ids.shape[1] > seqlen:
                 break
-        i = random.randint(0, trainenc.input_ids.shape[1] - seqlen - 1)
+        i = 0 #random.randint(0, trainenc.input_ids.shape[1] - seqlen - 1)
         j = i + seqlen
         inp = trainenc.input_ids[:, i:j]
         tar = inp.clone()
